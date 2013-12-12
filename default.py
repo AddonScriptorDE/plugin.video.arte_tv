@@ -6,6 +6,7 @@ import socket
 import sys
 import re
 import os
+import json
 import xbmcplugin
 import xbmcaddon
 import xbmcgui
@@ -15,7 +16,6 @@ socket.setdefaulttimeout(30)
 pluginhandle = int(sys.argv[1])
 addonID = "plugin.video.arte_tv"
 addon = xbmcaddon.Addon(id=addonID)
-translation = addon.getLocalizedString
 forceViewMode = addon.getSetting("forceView") == "true"
 useThumbAsFanart = addon.getSetting("useThumbAsFanart") == "true"
 viewMode = str(addon.getSetting("viewID"))
@@ -48,9 +48,46 @@ def index():
 def listVideosNew(url):
     xbmcplugin.setContent(pluginhandle, "episodes")
     content = getUrl(url)
-    match = re.compile('\\{"image_url":"(.+?)","title":"(.+?)","duration":(.+?),"airdate_long":"(.+?)","desc":(.*?),"url":"(.+?)","video_channels":"(.*?)","video_views":"(.+?)","video_rights_until":"(.+?)","video_rank":(.*?)\\}', re.DOTALL).findall(content)
-    for thumb, title, duration, date, desc, url, channels, views, until, rank in match:
-        desc = views+"   |   "+date+"\n"+channels+"\n"+cleanTitle(desc).replace('"', '').replace("null", "")
+    content = json.loads(content)
+    for item in content["videos"]:
+        title = item["title"].encode('utf-8')
+        try:
+            desc = item["desc"].encode('utf-8')
+        except:
+            desc = ""
+        try:
+            duration = str(item["duration"])
+        except:
+            duration = ""
+        try:
+            date = item["airdate_long"].encode('utf-8')
+        except:
+            date = ""
+        try:
+            url = item["url"]
+        except:
+            url = ""
+        try:
+            thumb = item["image_url"]
+        except:
+            thumb = ""
+        try:
+            channels = item["video_channels"].encode('utf-8')
+        except:
+            channels = ""
+        try:
+            views = str(item["video_views"])
+        except:
+            views = ""
+        try:
+            until = item["video_rights_until"].encode('utf-8')
+        except:
+            until = ""
+        try:
+            rank = str(item["video_rank"])
+        except:
+            rank = ""
+        desc = views+"   |   "+date+"\n"+channels+"\n"+desc
         addLink(cleanTitle(title), baseUrl+url, 'playVideoNew', thumb, desc, duration)
     xbmcplugin.endOfDirectory(pluginhandle)
     if forceViewMode:
@@ -250,6 +287,10 @@ def getUrl(url, cookie=None):
     link = response.read()
     response.close()
     return link
+
+
+def translation(id):
+    return addon.getLocalizedString(id).encode('utf-8')
 
 
 def parameters_string_to_dict(parameters):
