@@ -12,23 +12,23 @@ import xbmcaddon
 import xbmcgui
 import time
 
-socket.setdefaulttimeout(30)
-pluginhandle = int(sys.argv[1])
+#addon = xbmcaddon.Addon()
+#addonID = addon.getAddonInfo('id')
 addonID = "plugin.video.arte_tv"
 addon = xbmcaddon.Addon(id=addonID)
+socket.setdefaulttimeout(30)
+pluginhandle = int(sys.argv[1])
 forceViewMode = addon.getSetting("forceView") == "true"
 useThumbAsFanart = addon.getSetting("useThumbAsFanart") == "true"
-viewMode = str(addon.getSetting("viewID"))
+viewMode = str(addon.getSetting("viewIDNew"))
 icon = xbmc.translatePath('special://home/addons/'+addonID+'/icon.png')
 baseUrl = "http://www.arte.tv"
-
-while (not os.path.exists(xbmc.translatePath("special://profile/addon_data/"+addonID+"/settings.xml"))):
-    addon.openSettings()
-
 language = addon.getSetting("language")
 language = ["de", "fr"][int(language)]
 maxVideoQuality = addon.getSetting("maxVideoQuality")
 maxVideoQuality = ["480p", "720p"][int(maxVideoQuality)]
+streamingType = addon.getSetting("streamingType")
+streamingType = ["HTTP", "RTMP"][int(streamingType)]
 
 
 def index():
@@ -138,6 +138,8 @@ def listCats(type):
         url = baseUrl+url.replace("?", ".json?").replace("&amp;", "&")
         addDir(title, url, 'listVideosNew', "")
     xbmcplugin.endOfDirectory(pluginhandle)
+    if forceViewMode:
+        xbmc.executebuiltin('Container.SetViewMode('+viewMode+')')
 
 
 def search():
@@ -170,6 +172,8 @@ def listWebLiveMain():
     addDir(translation(30017), "http://liveweb.arte.tv/searchEvent.do?method=displayElements&categoryId=3&eventDateMode=0&moveValue=1&eventDateMode=0&chronology=&globalNames=&classification=0&displayMode=0&eventTagName=", "listWebLive", "")
     addDir(translation(30008), "", "searchWebLive", "")
     xbmcplugin.endOfDirectory(pluginhandle)
+    if forceViewMode:
+        xbmc.executebuiltin('Container.SetViewMode('+viewMode+')')
 
 
 def listWebLive(url):
@@ -217,14 +221,36 @@ def playVideoNew(url):
 def getStreamUrlNew(url):
     content = getUrl(url)
     match = re.compile('arte_vp_url="(.+?)">', re.DOTALL).findall(content)
-    url = match[0].replace("/player/","/")
-    content = getUrl(url)
-    match1 = re.compile('"HBBTV","VQU":"SQ","VMT":"mp4","VUR":"(.+?)"', re.DOTALL).findall(content)
-    match2 = re.compile('"HBBTV","VQU":"EQ","VMT":"mp4","VUR":"(.+?)"', re.DOTALL).findall(content)
-    if match1 and maxVideoQuality == "720p":
-        return match1[0]
-    elif match2:
-        return match2[0]
+    if "concert.arte.tv" in url:
+        url = match[0]
+        content = getUrl(url)
+        match1 = re.compile('"HTTP_SQ_1":.+?"url":"(.+?)"', re.DOTALL).findall(content)
+        match2 = re.compile('"HTTP_EQ_1":.+?"url":"(.+?)"', re.DOTALL).findall(content)
+        if match1 and maxVideoQuality == "720p":
+            return match1[0]
+        elif match2:
+            return match2[0]
+    elif streamingType=="HTTP":
+        url = match[0].replace("/player/","/")
+        content = getUrl(url)
+        match1 = re.compile('"HBBTV","VQU":"SQ","VMT":"mp4","VUR":"(.+?)"', re.DOTALL).findall(content)
+        match2 = re.compile('"HBBTV","VQU":"EQ","VMT":"mp4","VUR":"(.+?)"', re.DOTALL).findall(content)
+        if match1 and maxVideoQuality == "720p":
+            return match1[0]
+        elif match2:
+            return match2[0]
+    elif streamingType=="RTMP":
+        url = match[0]
+        content = getUrl(url)
+        match1 = re.compile('"RTMP_SQ_1":.+?"streamer":"(.+?)","url":"(.+?)"', re.DOTALL).findall(content)
+        match2 = re.compile('"RTMP_MQ_1":.+?"streamer":"(.+?)","url":"(.+?)"', re.DOTALL).findall(content)
+        if match1 and maxVideoQuality == "720p":
+            base = match1[0][0]
+            playpath = match1[0][1]
+        elif match2:
+            base = match2[0][0]
+            playpath = match2[0][1]
+        return base+" playpath=mp4:"+playpath
 
 
 def queueVideo(url, name):
@@ -307,7 +333,7 @@ def parameters_string_to_dict(parameters):
 def addLink(name, url, mode, iconimage, desc="", duration=""):
     u = sys.argv[0]+"?url="+urllib.quote_plus(url)+"&mode="+str(mode)
     ok = True
-    liz = xbmcgui.ListItem(name, iconImage="DefaultVideo.png", thumbnailImage=iconimage)
+    liz = xbmcgui.ListItem(name, iconImage=icon, thumbnailImage=iconimage)
     liz.setInfo(type="Video", infoLabels={"Title": name, "Plot": desc, "Duration": duration})
     liz.setProperty('IsPlayable', 'true')
     if useThumbAsFanart and iconimage!=icon:
@@ -320,7 +346,7 @@ def addLink(name, url, mode, iconimage, desc="", duration=""):
 def addDir(name, url, mode, iconimage):
     u = sys.argv[0]+"?url="+urllib.quote_plus(url)+"&mode="+str(mode)
     ok = True
-    liz = xbmcgui.ListItem(name, iconImage="DefaultFolder.png", thumbnailImage=iconimage)
+    liz = xbmcgui.ListItem(name, iconImage=icon, thumbnailImage=iconimage)
     liz.setInfo(type="Video", infoLabels={"Title": name})
     ok = xbmcplugin.addDirectoryItem(handle=int(sys.argv[1]), url=u, listitem=liz, isFolder=True)
     return ok
